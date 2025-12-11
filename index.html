@@ -10,6 +10,7 @@
     .container { max-width: 900px; margin:auto; }
 
     h1 { text-align:center; margin-bottom: 10px; }
+    
     h2, h3 { margin-top: 0; }
 
     .btn {
@@ -48,20 +49,23 @@
       overflow-y:auto;
     }
   </style>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
 </head>
 
 <body>
 <div class="container">
   <h1>추억의 상자</h1>
 
-  <!-- 모드 선택 -->
   <div id="modeSelect" class="card" style="text-align:center;">
     <p>모드를 선택해주세요.</p>
     <button class="btn" onclick="showParticipant()">참여자 모드</button>
     <button class="btn secondary" onclick="showAdminLogin()">관리자 모드</button>
   </div>
 
-  <!-- 관리자 로그인 -->
   <div id="adminLogin" class="card hidden">
     <h3>관리자 비밀번호 입력</h3>
     <input type="password" id="adminPW" placeholder="비밀번호 입력">
@@ -69,12 +73,11 @@
     <button class="btn secondary" onclick="backToMode()">뒤로가기</button>
   </div>
 
-  <!-- 참여자 화면 -->
   <div id="participant" class="card hidden">
     <h2>친구들을 떠올리며 선택해주세요 (TOP2)</h2>
     <p style="font-size:13px; color:#4b5563;">
       1위는 2점, 2위는 1점으로 반영됩니다.<br>
-      이름은 가능한 한 동일한 방식으로 적어 주세요. (예: "이지훈" 또는 "지훈" 중 하나로 통일)
+      이름은 가능한 한 동일한 방식으로 적어 주세요.
     </p>
 
     <div id="questions"></div>
@@ -83,25 +86,21 @@
     <button class="btn secondary" onclick="backToMode()">처음으로</button>
   </div>
 
-  <!-- 관리자 패널 -->
   <div id="adminPanel" class="card hidden">
     <h2>관리자 패널</h2>
-    <p style="font-size:14px;">
-      <b>총 제출 인원:</b> <span id="totalVotes">0</span> 명
-    </p>
-    <div style="margin-bottom:10px;">
-      <button class="btn secondary" onclick="showAdmin()">새로고침</button>
-      <button class="btn danger" onclick="resetAll()">데이터 초기화</button>
-      <button class="btn" onclick="backToMode()">처음으로</button>
-    </div>
+    <p><b>총 제출 인원:</b> <span id="totalVotes">0</span> 명</p>
 
-    <div class="card" style="margin:-10px -20px 10px -20px; box-shadow:none;">
+    <button class="btn secondary" onclick="showAdmin()">새로고침</button>
+    <button class="btn danger" onclick="resetAll()">데이터 초기화</button>
+    <button class="btn" onclick="backToMode()">처음으로</button>
+
+    <div class="card" style="margin-top:15px;">
       <h3>질문별 결과 보기</h3>
-      <select id="graphSelect" style="margin-bottom:8px;"></select>
+      <select id="graphSelect"></select>
       <button class="btn secondary" onclick="showQuestionResult()">선택한 질문 결과 보기</button>
     </div>
 
-    <div class="card" style="margin:-10px -20px 10px -20px; box-shadow:none;">
+    <div class="card">
       <h3>전체 합산 결과</h3>
       <button class="btn secondary" onclick="showTotal()">전체 합산 점수 보기</button>
     </div>
@@ -111,254 +110,253 @@
   </div>
 </div>
 
-<script type="module">
-  /* --------------------------
-        Firebase 초기화
-  --------------------------- */
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getDatabase, ref, get, set, update } 
-    from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+<script>
+/* --------------------------
+   설정 (4반 Firebase + PW)
+-------------------------- */
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAqCEZSEcj6Dpgc5JvXk7DRoj6hvNo_ZKg",
-    authDomain: "memory-4-8ecb2.firebaseapp.com",
-    databaseURL: "https://memory-4-8ecb2-default-rtdb.firebaseio.com",
-    projectId: "memory-4-8ecb2",
-    storageBucket: "memory-4-8ecb2.firebasestorage.app",
-    messagingSenderId: "863511480546",
-    appId: "1:863511480546:web:82ccf750d41ead911e36bb",
-    measurementId: "G-7LP0HHDGG7"
-  };
+const PASSWORD = "qodmsgkrtjstodslatkfkdgkqslek";
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+const firebaseConfig = {
+  apiKey: "AIzaSyAqCEZSEcj6Dpgc5JvXk7DRoj6hvNo_ZKg",
+  authDomain: "memory-4-8ecb2.firebaseapp.com",
+  databaseURL: "https://memory-4-8ecb2-default-rtdb.firebaseio.com",
+  projectId: "memory-4-8ecb2",
+  storageBucket: "memory-4-8ecb2.firebasestorage.app",
+  messagingSenderId: "863511480546",
+  appId: "1:863511480546:web:82ccf750d41ead911e36bb",
+  measurementId: "G-7LP0HHDGG7"
+};
 
-  /* --------------------------
-          설정값
-  --------------------------- */
-  const QUESTIONS = [
-    "청소를 열심히 하던 친구",
-    "도움이 필요할 때 기댈 수 있었던 친구",
-    "학교 행사, 일정 등 전달 사항을 잘 공지해주던 친구",
-    "수업 분위기 조성을 잘 맞춰주던 친구",
-    "힘들 때 웃을 수 있게 해주던 친구",
-    "학교 행사에 열심히 참여하던 친구",
-    "리더십, 카리스마가 넘치던 친구",
-    "봉사활동을 열심히 하던 친구",
-    "사소한 일에도 약속을 잘 지키던 친구",
-    "바른언어, 바른 행동 등 품성이 아름답던 친구"
-  ];
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-  const PASSWORD = "qodmsgkrtjstodslatkfkdgkqslek";
+/* --------------------------
+   질문 목록
+-------------------------- */
+const QUESTIONS = [
+  "청소를 열심히 하던 친구",
+  "도움이 필요할 때 기댈 수 있었던 친구",
+  "학교 행사, 일정 등 전달 사항을 잘 공지해주던 친구",
+  "수업 분위기 조성을 잘 맞춰주던 친구",
+  "힘들 때 웃을 수 있게 해주던 친구",
+  "학교 행사에 열심히 참여하던 친구",
+  "리더십, 카리스마가 넘치던 친구",
+  "봉사활동을 열심히 하던 친구",
+  "사소한 일에도 약속을 잘 지키던 친구",
+  "바른언어, 바른 행동 등 품성이 아름답던 친구"
+];
 
-  /* --------------------------
-          공통 UI 함수
-  --------------------------- */
-  function hideAll() {
-    document.getElementById("modeSelect").classList.add("hidden");
-    document.getElementById("adminLogin").classList.add("hidden");
-    document.getElementById("participant").classList.add("hidden");
-    document.getElementById("adminPanel").classList.add("hidden");
+/* --------------------------
+   화면 제어
+-------------------------- */
+function hideAll() {
+  ["modeSelect", "adminLogin", "participant", "adminPanel"]
+    .forEach(id => document.getElementById(id).classList.add("hidden"));
+}
+
+function backToMode() {
+  hideAll();
+  document.getElementById("modeSelect").classList.remove("hidden");
+}
+
+/* --------------------------
+   참여자 모드
+-------------------------- */
+function showParticipant() {
+  if (localStorage.getItem("submitted_4ban") === "yes") {
+    alert("이미 이 기기에서 투표를 제출했습니다!");
+    return;
   }
+  hideAll();
+  document.getElementById("participant").classList.remove("hidden");
+  buildQuestionForm();
+}
 
-  function backToMode() {
-    hideAll();
-    document.getElementById("modeSelect").classList.remove("hidden");
-  }
+function buildQuestionForm() {
+  const box = document.getElementById("questions");
+  box.innerHTML = "";
 
-  /* --------------------------
-        참여자 모드
-  --------------------------- */
-  function showParticipant() {
-    hideAll();
-    document.getElementById("participant").classList.remove("hidden");
-    buildQuestionForm();
-  }
+  QUESTIONS.forEach((q, i) => {
+    box.innerHTML += `
+      <div class="question-box">
+        <label>${i + 1}. ${q}</label>
+        <span class="rank-label">1위 (2점)</span>
+        <input id="q${i}_1">
+        <span class="rank-label">2위 (1점)</span>
+        <input id="q${i}_2">
+      </div>
+    `;
+  });
+}
 
-  function buildQuestionForm() {
-    const box = document.getElementById("questions");
-    box.innerHTML = "";
+/* --------------------------
+   이름 자동 통합 기능 (핵심)
+-------------------------- */
+function normalizeName(name, existingNames) {
+  if (!name) return "";
 
-    QUESTIONS.forEach((q, i) => {
-      box.innerHTML += `
-        <div class="question-box">
-          <label>${i + 1}. ${q}</label>
-          <span class="rank-label">1위 (2점)</span>
-          <input id="q${i}_1" placeholder="예: 이지훈 / 지훈">
-          <span class="rank-label">2위 (1점)</span>
-          <input id="q${i}_2" placeholder="예: 이지훈 / 지훈">
-        </div>
-      `;
-    });
-  }
+  // 기본 정리
+  name = name.trim().replace(/\s+/g, "").replace(/(이|야|님|군|양|씨|요)$/g, "");
 
-  /* --------------------------
-      이름 정규화 (지훈 = 이지훈)
-  --------------------------- */
-  function normalizeName(name, existingNames) {
-    if (!name) return "";
+  // 기존 이름들과 '부분 문자열 일치' 비교
+  for (let saved of existingNames) {
+    if (!saved) continue;
 
-    name = name.trim().replace(/\s+/g, "");
-
-    // 호칭 제거
-    name = name.replace(/(이|야|님|군|양|씨|요)$/g, "");
-
-    // 기존 이름과 "포함 관계" 있으면 통일
-    for (let saved of existingNames) {
-      if (!saved) continue;
-      if (saved.includes(name) || name.includes(saved)) {
-        return saved;
-      }
-    }
-
-    return name;
-  }
-
-  /* --------------------------
-        투표 제출
-  --------------------------- */
-  async function submitVotes() {
-    const dbRef = ref(db, "votes/");
-    const snapshot = await get(dbRef);
-    let data = snapshot.exists() ? snapshot.val() : {};
-
-    // 기존 이름 수집
-    const existingNames = new Set();
-    Object.values(data).forEach(qObj => {
-      Object.keys(qObj).forEach(n => existingNames.add(n));
-    });
-
-    // 반영
-    QUESTIONS.forEach((_, qi) => {
-      if (!data[qi]) data[qi] = {};
-
-      let raw1 = document.getElementById(`q${qi}_1`).value;
-      let raw2 = document.getElementById(`q${qi}_2`).value;
-
-      let first = normalizeName(raw1, existingNames);
-      if (first) existingNames.add(first);
-
-      let second = normalizeName(raw2, existingNames);
-      if (second) existingNames.add(second);
-
-      if (first && second && first === second) second = "";
-
-      if (first) {
-        if (!data[qi][first]) data[qi][first] = 0;
-        data[qi][first] += 2;
-      }
-      if (second) {
-        if (!data[qi][second]) data[qi][second] = 0;
-        data[qi][second] += 1;
-      }
-    });
-
-    const countRef = ref(db, "count");
-    const countSnap = await get(countRef);
-    const newCount = countSnap.exists() ? countSnap.val() + 1 : 1;
-
-    await update(ref(db), {
-      votes: data,
-      count: newCount
-    });
-
-    alert("제출 완료!");
-    backToMode();
-  }
-
-  /* --------------------------
-        관리자 모드
-  --------------------------- */
-  function showAdminLogin() {
-    hideAll();
-    document.getElementById("adminLogin").classList.remove("hidden");
-  }
-
-  function checkAdmin() {
-    if (document.getElementById("adminPW").value === PASSWORD) {
-      showAdmin();
-    } else {
-      alert("비밀번호가 틀렸습니다.");
+    // 🔥 핵심 규칙
+    if (saved.includes(name) || name.includes(saved)) {
+      return saved;
     }
   }
 
-  async function showAdmin() {
-    hideAll();
-    document.getElementById("adminPanel").classList.remove("hidden");
+  return name;
+}
 
-    const countSnap = await get(ref(db, "count"));
-    document.getElementById("totalVotes").innerText =
-      countSnap.exists() ? countSnap.val() : 0;
-
-    buildGraphSelector();
-    document.getElementById("resultBox").innerText = "결과가 여기 표시됩니다.";
+/* --------------------------
+   투표 제출
+-------------------------- */
+async function submitVotes() {
+  if (localStorage.getItem("submitted_4ban") === "yes") {
+    alert("이미 제출했습니다.");
+    return;
   }
 
-  function buildGraphSelector() {
-    const sel = document.getElementById("graphSelect");
-    sel.innerHTML = "";
-    QUESTIONS.forEach((q, i) => {
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = `${i + 1}. ${q}`;
-      sel.appendChild(opt);
+  // 기존 DB 데이터 수집
+  const snap = await db.ref("/4ban/votes").get();
+  let existingNames = new Set();
+
+  snap.forEach(child => {
+    child.val().forEach(ans => {
+      if (ans.first) existingNames.add(ans.first);
+      if (ans.second) existingNames.add(ans.second);
     });
-  }
+  });
 
-  async function showQuestionResult() {
-    const idx = Number(document.getElementById("graphSelect").value);
-    const snap = await get(ref(db, "votes/" + idx));
-    const qData = snap.exists() ? snap.val() : {};
+  let voteData = [];
 
-    const box = document.getElementById("resultBox");
+  QUESTIONS.forEach((_, i) => {
+    let firstRaw = document.getElementById(`q${i}_1`).value;
+    let secondRaw = document.getElementById(`q${i}_2`).value;
 
-    if (Object.keys(qData).length === 0) {
-      box.innerText = `📌 ${idx + 1}. ${QUESTIONS[idx]}\n\n아직 데이터가 없습니다.`;
-      return;
-    }
+    let first = normalizeName(firstRaw, existingNames);
+    let second = normalizeName(secondRaw, existingNames);
 
-    const sorted = Object.entries(qData).sort((a, b) => b[1] - a[1]);
+    if (first) existingNames.add(first);
+    if (second) existingNames.add(second);
 
-    let text = `📌 ${idx + 1}. ${QUESTIONS[idx]}\n\n`;
-    sorted.forEach(([n, s], i) => (text += `${i + 1}위. ${n} : ${s}점\n`));
+    if (first && second && first === second) second = "";
 
-    box.innerText = text;
-  }
+    voteData.push({ first, second });
+  });
 
-  async function showTotal() {
-    const snap = await get(ref(db, "votes"));
-    const data = snap.exists() ? snap.val() : {};
-    const total = {};
+  // 저장
+  await db.ref("/4ban/votes").push(voteData);
 
-    Object.values(data).forEach(qObj => {
-      Object.entries(qObj).forEach(([name, score]) => {
-        if (!total[name]) total[name] = 0;
-        total[name] += score;
-      });
+  // 카운트 증가
+  db.ref("/4ban/voteCount").transaction(x => (x || 0) + 1);
+
+  localStorage.setItem("submitted_4ban", "yes");
+
+  alert("제출 완료!");
+  backToMode();
+}
+
+/* --------------------------
+   관리자 로그인
+-------------------------- */
+function showAdminLogin() {
+  hideAll();
+  document.getElementById("adminLogin").classList.remove("hidden");
+}
+
+function checkAdmin() {
+  if (document.getElementById("adminPW").value === PASSWORD) showAdmin();
+  else alert("비밀번호가 틀렸습니다.");
+}
+
+/* --------------------------
+   관리자 패널
+-------------------------- */
+async function showAdmin() {
+  hideAll();
+  document.getElementById("adminPanel").classList.remove("hidden");
+
+  const count = await db.ref("/4ban/voteCount").get();
+  document.getElementById("totalVotes").innerText = count.val() || 0;
+
+  const sel = document.getElementById("graphSelect");
+  sel.innerHTML = "";
+  QUESTIONS.forEach((q, i) =>
+    sel.innerHTML += `<option value="${i}">${i + 1}. ${q}</option>`
+  );
+
+  document.getElementById("resultBox").innerText = "결과가 여기 표시됩니다.";
+}
+
+/* --------------------------
+   질문별 결과
+-------------------------- */
+async function showQuestionResult() {
+  const idx = Number(document.getElementById("graphSelect").value);
+  const snap = await db.ref("/4ban/votes").get();
+
+  let score = {};
+
+  snap.forEach(child => {
+    const ans = child.val()[idx];
+    if (ans.first) score[ans.first] = (score[ans.first] || 0) + 2;
+    if (ans.second) score[ans.second] = (score[ans.second] || 0) + 1;
+  });
+
+  let text = `📌 ${idx + 1}. ${QUESTIONS[idx]}\n\n`;
+  const sorted = Object.entries(score).sort((a, b) => b[1] - a[1]);
+
+  if (sorted.length === 0) text += "아직 데이터가 없습니다.";
+  else sorted.forEach(([name, sc], i) => text += `${i + 1}위. ${name} : ${sc}점\n`);
+
+  document.getElementById("resultBox").innerText = text;
+}
+
+/* --------------------------
+   전체 합산
+-------------------------- */
+async function showTotal() {
+  const snap = await db.ref("/4ban/votes").get();
+
+  let total = {};
+
+  snap.forEach(child => {
+    child.val().forEach(ans => {
+      if (ans.first) total[ans.first] = (total[ans.first] || 0) + 2;
+      if (ans.second) total[ans.second] = (total[ans.second] || 0) + 1;
     });
+  });
 
-    const box = document.getElementById("resultBox");
+  let text = "📌 전체 합산 결과\n\n";
+  const sorted = Object.entries(total).sort((a, b) => b[1] - a[1]);
 
-    if (Object.keys(total).length === 0) {
-      box.innerText = "📌 전체 합산 결과\n\n아직 데이터가 없습니다.";
-      return;
-    }
+  if (sorted.length === 0) text += "아직 데이터가 없습니다.";
+  else sorted.forEach(([name, sc], i) => text += `${i + 1}위. ${name} : ${sc}점\n`);
 
-    const sorted = Object.entries(total).sort((a, b) => b[1] - a[1]);
+  document.getElementById("resultBox").innerText = text;
+}
 
-    let text = "📌 전체 합산 결과\n\n";
-    sorted.forEach(([n, s], i) => (text += `${i + 1}위. ${n} : ${s}점\n`));
+/* --------------------------
+   데이터 초기화 (+ 투표 초기화)
+-------------------------- */
+async function resetAll() {
+  if (!confirm("정말로 모든 데이터를 초기화하시겠습니까?")) return;
 
-    box.innerText = text;
-  }
+  await db.ref("/4ban").remove();
 
-  async function resetAll() {
-    if (!confirm("정말 초기화하시겠습니까?")) return;
+  // 🔥 투표 재가능하게 만듦
+  localStorage.removeItem("submitted_4ban");
 
-    await set(ref(db), null);
-    alert("초기화 완료!");
-    showAdmin();
-  }
+  alert("모든 데이터 삭제 완료");
+  showAdmin();
+}
 </script>
+
 </body>
 </html>
+
